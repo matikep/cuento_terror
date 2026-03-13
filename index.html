@@ -99,6 +99,7 @@ font-family:'VT323',monospace;font-size:.75rem;padding:.6rem;border-left:2px sol
 </div>
 <div id="debug-panel"><h3>// DEBUG SANITY</h3><pre id="debug-content"></pre></div>
 
+<script src="story.js"></script>
 <script>
 // ============ SANITY STATE ============
 const sanityState = { text: 100, visual: 100, perceptive: 100, interface: 100 };
@@ -106,26 +107,8 @@ const GLITCH_CHARS = ['†','‡','☠','Ω','¥','§','∆','◊','░','▒','
 const REPLACE_WORDS = ['AYUDA','MÍRAME','ÉL VIENE','NO ESTÁS SOLO','CORRE','DETRÁS DE TI','NO DESPIERTES'];
 const SUBLIMINAL_MSGS = ['TE VEO','NO ESTÁS SOLO','DATE LA VUELTA','DESPIERTA','ES REAL','SIEMPRE ESTUVO AHÍ','NO CIERRES LOS OJOS','DETRÁS DE TI'];
 
-// ============ STORY DATA (loaded from story.json) ============
-let storyNodes = {};
-
-async function loadStoryData() {
-  try {
-    const resp = await fetch('./story.json');
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    storyNodes = await resp.json();
-    console.log(`[ENGINE] Story loaded: ${Object.keys(storyNodes).length} nodes`);
-    return true;
-  } catch (err) {
-    console.error('[ENGINE] Failed to load story.json:', err);
-    // Show error on title screen (visible) instead of hidden app
-    const titleP = document.querySelector('#title-screen p');
-    if (titleP) {
-      titleP.innerHTML = '<span style="color:#8b0000">ERROR DE CARGA:<br>' + err.message + '<br><br>Verifica que story.json exista junto a index.html</span>';
-    }
-    return false;
-  }
-}
+// ============ STORY DATA (loaded from story.js) ============
+let storyNodes = typeof STORY_DATA !== 'undefined' ? STORY_DATA : {};
 
 // ============ HAPTICS (Vibration API) ============
 let heartbeatInterval = null;
@@ -270,10 +253,10 @@ function init() {
 }
 
 async function startGame() {
-  // Load story data if not yet loaded
   if (Object.keys(storyNodes).length === 0) {
-    const ok = await loadStoryData();
-    if (!ok) return;
+    const titleP = document.querySelector('#title-screen p');
+    if (titleP) titleP.innerHTML = '<span style="color:#8b0000">ERROR: story.js no se cargó correctamente.</span>';
+    return;
   }
   document.getElementById('title-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
