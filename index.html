@@ -118,9 +118,10 @@ async function loadStoryData() {
     return true;
   } catch (err) {
     console.error('[ENGINE] Failed to load story.json:', err);
-    const storyEl = document.getElementById('story-text');
-    if (storyEl) {
-      storyEl.innerHTML = '<span style="color:#8b0000">ERROR DE CARGA: No se pudo leer story.json<br><br>Asegúrese de servir desde un servidor local.</span>';
+    // Show error on title screen (visible) instead of hidden app
+    const titleP = document.querySelector('#title-screen p');
+    if (titleP) {
+      titleP.innerHTML = '<span style="color:#8b0000">ERROR DE CARGA:<br>' + err.message + '<br><br>Verifica que story.json exista junto a index.html</span>';
     }
     return false;
   }
@@ -239,9 +240,15 @@ function checkTiltSecret() {
 }
 
 async function requestSensorsAndStart() {
-  // Request gyro permission first (required gesture on iOS)
-  await requestGyroPermission();
-  startGame();
+  try {
+    // Request gyro permission first (required gesture on iOS)
+    await requestGyroPermission();
+    await startGame();
+  } catch(e) {
+    console.error('[ENGINE] Start error:', e);
+    const titleP = document.querySelector('#title-screen p');
+    if (titleP) titleP.innerHTML = '<span style="color:#8b0000">ERROR: ' + e.message + '</span>';
+  }
 }
 
 // ============ ENGINE ============
