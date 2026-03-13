@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>El Susurro del Vacío</title>
+<meta name="description" content="Un cuento interactivo de terror psicológico. Solo para terminales móviles.">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=VT323&family=Share+Tech+Mono&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a08;--paper:#1a1814;--text:#c4b99a;--text-dim:#6b6350;--accent:#8b0000;--glow:rgba(139,0,0,.3)}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Special Elite',monospace}
+/* --- NOISE OVERLAY --- */
+#noise{position:fixed;top:-50%;left:-50%;width:200%;height:200%;z-index:9000;pointer-events:none;opacity:.04;
+background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+animation:noiseMove .1s steps(2) infinite}
+@keyframes noiseMove{0%{transform:translate(0,0)}100%{transform:translate(10px,-10px)}}
+/* --- VIGNETTE --- */
+#vignette{position:fixed;top:0;left:0;width:100%;height:100%;z-index:8999;pointer-events:none;
+background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.85) 100%)}
+/* --- SCANLINES --- */
+#scanlines{position:fixed;top:0;left:0;width:100%;height:100%;z-index:8998;pointer-events:none;opacity:.06;
+background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.3) 2px,rgba(0,0,0,.3) 4px)}
+/* --- SUBLIMINAL LAYER --- */
+#subliminal-layer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;display:flex;align-items:center;justify-content:center;opacity:0}
+#subliminal-layer span{font-family:'VT323',monospace;font-size:20vw;color:var(--accent);text-transform:uppercase}
+/* --- TILT SECRET --- */
+#tilt-secret{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;pointer-events:none;
+font-family:'VT323',monospace;font-size:6vw;color:rgba(139,0,0,.35);text-transform:uppercase;
+opacity:0;transition:opacity .3s;white-space:nowrap;letter-spacing:.15em}
+#tilt-secret.visible{opacity:1}
+/* --- DESKTOP BLOCK --- */
+#desktop-block{display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;
+flex-direction:column;align-items:center;justify-content:center;font-family:'VT323',monospace;color:#8b0000;text-align:center;padding:2rem}
+#desktop-block h1{font-size:2rem;margin-bottom:1rem;animation:flicker 3s infinite}
+#desktop-block p{font-size:1.2rem;color:#4a3a2a;max-width:500px}
+/* --- APP CONTAINER --- */
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh;position:relative;z-index:10}
+/* --- HEADER --- */
+#header{padding:1rem;text-align:center;border-bottom:1px solid rgba(139,0,0,.2);flex-shrink:0}
+#header h1{font-family:'VT323',monospace;font-size:1.1rem;color:var(--accent);letter-spacing:.3em;text-transform:uppercase;animation:flicker 4s infinite}
+/* --- STORY AREA --- */
+#story-area{flex:1;overflow-y:auto;padding:1.5rem 1.2rem;position:relative;
+scrollbar-width:none;-ms-overflow-style:none}
+#story-area::-webkit-scrollbar{display:none}
+#story-text{font-family:'Special Elite',monospace;font-size:1.05rem;line-height:1.8;color:var(--text);min-height:100px}
+#story-text .cursor{display:inline-block;width:2px;height:1.1em;background:var(--accent);margin-left:2px;animation:blink 0.8s step-end infinite;vertical-align:text-bottom}
+/* --- OPTIONS AREA --- */
+#options-area{flex-shrink:0;padding:1rem;border-top:1px solid rgba(139,0,0,.15);background:rgba(10,10,8,.95);min-height:35vh;display:flex;flex-direction:column;justify-content:center;gap:.7rem}
+.option-btn{display:block;width:100%;padding:1rem 1.2rem;background:rgba(26,24,20,.9);border:1px solid rgba(139,0,0,.3);
+color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.95rem;text-align:left;cursor:pointer;
+transition:border-color .3s,background .3s,transform .1s;position:relative;overflow:hidden;touch-action:manipulation}
+.option-btn::before{content:'>';position:absolute;left:.5rem;color:var(--accent);opacity:.5}
+.option-btn span{margin-left:1rem}
+.option-btn:active{background:rgba(139,0,0,.15);border-color:var(--accent);transform:scale(.98)}
+.option-btn.glitched{animation:btnGlitch .1s steps(2) 3}
+/* --- DEBUG PANEL --- */
+#debug-panel{display:none;position:fixed;top:0;right:0;z-index:50000;background:rgba(0,20,0,.92);color:#00ff00;
+font-family:'VT323',monospace;font-size:.75rem;padding:.6rem;border-left:2px solid #00ff00;border-bottom:2px solid #00ff00;max-width:55vw;line-height:1.6}
+#debug-panel h3{color:#00ff41;margin-bottom:.3rem;font-size:.85rem}
+/* --- ANIMATIONS --- */
+@keyframes blink{50%{opacity:0}}
+@keyframes flicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:.2}94%{opacity:1}96%{opacity:.4}97%{opacity:1}}
+@keyframes shake-sm{0%,100%{transform:translate(0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,-1px)}75%{transform:translate(-1px,0)}}
+@keyframes shake-md{0%,100%{transform:translate(0)}10%{transform:translate(-3px,2px)}30%{transform:translate(2px,-3px)}50%{transform:translate(-2px,1px)}70%{transform:translate(3px,1px)}90%{transform:translate(-1px,-2px)}}
+@keyframes shake-lg{0%,100%{transform:translate(0)}10%{transform:translate(-5px,3px)}20%{transform:translate(4px,-4px)}30%{transform:translate(-3px,5px)}40%{transform:translate(5px,-2px)}50%{transform:translate(-4px,4px)}60%{transform:translate(3px,-5px)}70%{transform:translate(-5px,1px)}80%{transform:translate(2px,4px)}90%{transform:translate(-3px,-3px)}}
+@keyframes btnGlitch{0%{transform:translate(0)}25%{transform:translate(-4px,2px)}50%{transform:translate(3px,-1px)}75%{transform:translate(-2px,3px)}100%{transform:translate(0)}}
+@keyframes subliminalFlash{0%{opacity:0}5%{opacity:.6}10%{opacity:0}100%{opacity:0}}
+@keyframes flickerOpacity{0%,100%{opacity:1}50%{opacity:.7}}
+.shake-active{animation:shake-sm .15s linear infinite}
+.shake-medium{animation:shake-md .12s linear infinite}
+.shake-heavy{animation:shake-lg .1s linear infinite}
+.force-blur{animation:blurPulse 7s ease-in-out infinite!important}
+@keyframes blurPulse{0%{filter:blur(4px)}35%{filter:blur(4px)}42%{filter:blur(0)}85%{filter:blur(0)}100%{filter:blur(4px)}}
+/* --- TITLE SCREEN --- */
+#title-screen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:20000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem}
+#title-screen h1{font-family:'VT323',monospace;font-size:2.2rem;color:var(--accent);letter-spacing:.2em;margin-bottom:.5rem;animation:flicker 3s infinite}
+#title-screen p{font-family:'Special Elite',monospace;font-size:.9rem;color:var(--text-dim);margin-bottom:2.5rem;max-width:280px}
+#start-btn{font-family:'VT323',monospace;font-size:1.3rem;color:var(--accent);background:none;border:1px solid var(--accent);padding:.8rem 2.5rem;cursor:pointer;letter-spacing:.15em;animation:flicker 5s infinite;touch-action:manipulation}
+#start-btn:active{background:rgba(139,0,0,.2)}
+</style>
+</head>
+<body>
+<div id="noise"></div>
+<div id="vignette"></div>
+<div id="scanlines"></div>
+<div id="subliminal-layer"><span id="subliminal-text"></span></div>
+<div id="tilt-secret"></div>
+<div id="desktop-block"><h1>⛔ ACCESO DENEGADO ⛔</h1><p>Solo Terminales Móviles Autorizados.<br><br>Este contenido no está diseñado para su dispositivo. Acceda desde un terminal portátil.</p></div>
+<div id="title-screen">
+  <h1>EL SUSURRO<br>DEL VACÍO</h1>
+  <p>Un cuento interactivo que no deberías haber encontrado.</p>
+  <button id="start-btn" onclick="requestSensorsAndStart()">[ INICIAR SESIÓN ]</button>
+</div>
+<div id="app" style="display:none">
+  <div id="header"><h1>Terminal — Sesión Activa</h1></div>
+  <div id="story-area"><div id="story-text"></div></div>
+  <div id="options-area" id="options"></div>
+</div>
+<div id="debug-panel"><h3>// DEBUG SANITY</h3><pre id="debug-content"></pre></div>
+
+<script>
+// ============ SANITY STATE ============
+const sanityState = { text: 100, visual: 100, perceptive: 100, interface: 100 };
+const GLITCH_CHARS = ['†','‡','☠','Ω','¥','§','∆','◊','░','▒','▓','█','Ψ','Σ','λ'];
+const REPLACE_WORDS = ['AYUDA','MÍRAME','ÉL VIENE','NO ESTÁS SOLO','CORRE','DETRÁS DE TI','NO DESPIERTES'];
+const SUBLIMINAL_MSGS = ['TE VEO','NO ESTÁS SOLO','DATE LA VUELTA','DESPIERTA','ES REAL','SIEMPRE ESTUVO AHÍ','NO CIERRES LOS OJOS','DETRÁS DE TI'];
+
+// ============ STORY DATA (loaded from story.json) ============
+let storyNodes = {};
+
+async function loadStoryData() {
+  try {
+    const resp = await fetch('./story.json');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    storyNodes = await resp.json();
+    console.log(`[ENGINE] Story loaded: ${Object.keys(storyNodes).length} nodes`);
+    return true;
+  } catch (err) {
+    console.error('[ENGINE] Failed to load story.json:', err);
+    const storyEl = document.getElementById('story-text');
+    if (storyEl) {
+      storyEl.innerHTML = '<span style="color:#8b0000">ERROR DE CARGA: No se pudo leer story.json<br><br>Asegúrese de servir desde un servidor local.</span>';
+    }
+    return false;
+  }
+}
+
+// ============ HAPTICS (Vibration API) ============
+let heartbeatInterval = null;
+const hapticsSupported = 'vibrate' in navigator;
+
+function vibrate(pattern) {
+  if (!hapticsSupported) return;
+  try { navigator.vibrate(pattern); } catch(e) {}
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatInterval = setInterval(() => {
+    const sv = sanityState.visual;
+    if (sv >= 40) return;
+    // Double-pulse heartbeat: thump-thump... thump-thump
+    // Gets faster and stronger as sanity drops
+    const intensity = sv < 20 ? 80 : 50;
+    const gap = sv < 20 ? 120 : 200;
+    vibrate([intensity, gap, intensity * 0.6]);
+  }, sanityState.visual < 20 ? 1500 : 2500);
+}
+
+function stopHeartbeat() {
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+  vibrate(0); // cancel any ongoing vibration
+}
+
+function hapticGlitch() {
+  vibrate(15);
+}
+
+function hapticShock(pattern) {
+  // pattern is an array like [500] or [200, 100, 200]
+  vibrate(pattern);
+}
+
+// ============ GYROSCOPE (Device Orientation API) ============
+let gyroEnabled = false;
+let gyroData = { alpha: 0, beta: 0, gamma: 0 };
+const TILT_SECRETS = ['NO MUEVAS EL TERMINAL','ÉL SABE QUE MIRAS','DETRÁS DEL CRISTAL','LAS PAREDES TE SIENTEN','NO ESTÁS LEYENDO... TE ESTÁN LEYENDO'];
+let currentTiltSecret = TILT_SECRETS[0];
+
+async function requestGyroPermission() {
+  // iOS 13+ requires explicit permission
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const perm = await DeviceOrientationEvent.requestPermission();
+      if (perm === 'granted') { enableGyro(); return true; }
+      console.log('[GYRO] Permission denied');
+      return false;
+    } catch(e) {
+      console.log('[GYRO] Permission error:', e);
+      return false;
+    }
+  } else if ('DeviceOrientationEvent' in window) {
+    // Android / desktop — no permission needed
+    enableGyro();
+    return true;
+  }
+  console.log('[GYRO] Not supported');
+  return false;
+}
+
+function enableGyro() {
+  gyroEnabled = true;
+  window.addEventListener('deviceorientation', handleOrientation, true);
+  console.log('[GYRO] Enabled');
+}
+
+function handleOrientation(e) {
+  gyroData.alpha = e.alpha || 0; // compass
+  gyroData.beta = e.beta || 0;   // front-back tilt (-180 to 180)
+  gyroData.gamma = e.gamma || 0; // left-right tilt (-90 to 90)
+  applyParallax();
+  checkTiltSecret();
+}
+
+function applyParallax() {
+  // Map gamma (-90..90) and beta (tilted from ~60 neutral) to subtle shifts
+  const xShift = (gyroData.gamma / 90) * 15; // max ±15px
+  const yShift = ((gyroData.beta - 60) / 90) * 10; // max ±10px from neutral hold
+
+  const noise = document.getElementById('noise');
+  const vignette = document.getElementById('vignette');
+  const scanlines = document.getElementById('scanlines');
+
+  // Each layer moves at different speeds for depth
+  if (noise) noise.style.transform = `translate(${xShift * 1.5}px, ${yShift * 1.5}px)`;
+  if (vignette) vignette.style.transform = `translate(${xShift * 0.5}px, ${yShift * 0.5}px)`;
+  if (scanlines) scanlines.style.transform = `translate(${xShift * 0.3}px, ${yShift * 0.3}px)`;
+}
+
+function checkTiltSecret() {
+  // Show hidden message when phone is tilted forward > 30 degrees (face-down)
+  const tiltEl = document.getElementById('tilt-secret');
+  if (!tiltEl) return;
+  const sp = sanityState.perceptive;
+  // Only show when perceptive sanity is degraded
+  if (sp >= 60) { tiltEl.classList.remove('visible'); return; }
+  // beta > 90 means phone is tilted forward significantly
+  if (gyroData.beta > 90) {
+    tiltEl.textContent = currentTiltSecret;
+    tiltEl.classList.add('visible');
+  } else {
+    if (tiltEl.classList.contains('visible')) {
+      tiltEl.classList.remove('visible');
+      // Pick new secret for next time
+      currentTiltSecret = TILT_SECRETS[Math.floor(Math.random() * TILT_SECRETS.length)];
+    }
+  }
+}
+
+async function requestSensorsAndStart() {
+  // Request gyro permission first (required gesture on iOS)
+  await requestGyroPermission();
+  startGame();
+}
+
+// ============ ENGINE ============
+let currentNode = null;
+let typewriterTimeout = null;
+let isTyping = false;
+let debugMode = false;
+let subliminalInterval = null;
+
+function init() {
+  debugMode = new URLSearchParams(window.location.search).has('debug') && new URLSearchParams(window.location.search).get('debug') === 'true';
+  if (debugMode) document.getElementById('debug-panel').style.display = 'block';
+  const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 820;
+  if (!isMobile && !debugMode) {
+    document.getElementById('desktop-block').style.display = 'flex';
+    document.getElementById('title-screen').style.display = 'none';
+    return;
+  }
+}
+
+async function startGame() {
+  // Load story data if not yet loaded
+  if (Object.keys(storyNodes).length === 0) {
+    const ok = await loadStoryData();
+    if (!ok) return;
+  }
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  sanityState.text = 100; sanityState.visual = 100; sanityState.perceptive = 100; sanityState.interface = 100;
+  loadNode('inicio');
+  subliminalInterval = setInterval(trySubliminal, 4000);
+  startHeartbeat();
+}
+
+function loadNode(id) {
+  if (id === '__restart__') { startGame(); return; }
+  const node = storyNodes[id];
+  if (!node) return;
+  currentNode = node;
+  // Apply sanity impact
+  sanityState.text = Math.max(0, sanityState.text + (node.impact.text || 0));
+  sanityState.visual = Math.max(0, sanityState.visual + (node.impact.visual || 0));
+  sanityState.perceptive = Math.max(0, sanityState.perceptive + (node.impact.perceptive || 0));
+  sanityState.interface = Math.max(0, sanityState.interface + (node.impact.interface || 0));
+  // Apply visual + haptic effects
+  applyVisualEffects(node.effects);
+  // Trigger shock vibration if defined in node effects
+  if (node.effects && node.effects.vibrate) {
+    hapticShock(node.effects.vibrate);
+  }
+  // Clear and type text
+  const storyEl = document.getElementById('story-text');
+  const optionsEl = document.getElementById('options-area');
+  storyEl.innerHTML = '';
+  optionsEl.innerHTML = '';
+  const processedText = corruptText(node.text);
+  typeWriter(processedText, storyEl, () => { renderOptions(node.options); });
+  updateDebug();
+}
+
+function corruptText(text) {
+  const s = sanityState.text;
+  if (s >= 70) return text;
+  let result = '';
+  const prob = s >= 40 ? 0.05 : 0.30;
+  const words = text.split(' ');
+  for (let i = 0; i < words.length; i++) {
+    let word = words[i];
+    if (s < 40 && Math.random() < 0.04 && word.length > 3) {
+      word = REPLACE_WORDS[Math.floor(Math.random() * REPLACE_WORDS.length)];
+    } else {
+      let chars = word.split('');
+      for (let j = 0; j < chars.length; j++) {
+        if (Math.random() < prob && /[a-zA-ZáéíóúñÁÉÍÓÚÑ]/.test(chars[j])) {
+          chars[j] = GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+        }
+      }
+      word = chars.join('');
+    }
+    result += word + (i < words.length - 1 ? ' ' : '');
+  }
+  return result;
+}
+
+function typeWriter(text, el, callback) {
+  if (typewriterTimeout) clearTimeout(typewriterTimeout);
+  isTyping = true;
+  let i = 0;
+  el.innerHTML = '';
+  function type() {
+    if (i < text.length) {
+      const ch = text[i];
+      if (ch === '\n') { el.innerHTML += '<br>'; }
+      else { el.innerHTML += ch; }
+      // Remove old cursor, add new
+      const cursors = el.querySelectorAll('.cursor');
+      cursors.forEach(c => c.remove());
+      el.innerHTML += '<span class="cursor"></span>';
+      let delay = 28 + Math.random() * 18;
+      if (ch === '.' || ch === '…') delay = 350 + Math.random() * 200;
+      else if (ch === ',') delay = 180 + Math.random() * 100;
+      else if (ch === '\n') delay = 200;
+      i++;
+      // Auto-scroll
+      const area = document.getElementById('story-area');
+      area.scrollTop = area.scrollHeight;
+      typewriterTimeout = setTimeout(type, delay);
+    } else {
+      isTyping = false;
+      const cursors = el.querySelectorAll('.cursor');
+      cursors.forEach(c => c.remove());
+      if (callback) callback();
+    }
+  }
+  type();
+}
+
+function renderOptions(options) {
+  const optionsEl = document.getElementById('options-area');
+  optionsEl.innerHTML = '';
+  options.forEach((opt, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.innerHTML = '<span>' + corruptText(opt.text) + '</span>';
+    btn.setAttribute('data-next', opt.next);
+    btn.setAttribute('data-original', opt.text);
+    // Interface glitch: buttons dodge or change text
+    if (sanityState.interface < 30) {
+      btn.addEventListener('pointerenter', function() {
+        if (Math.random() < 0.4) {
+          const dx = (Math.random() - 0.5) * 30;
+          const dy = (Math.random() - 0.5) * 15;
+          this.style.transform = `translate(${dx}px, ${dy}px)`;
+          this.classList.add('glitched');
+          hapticGlitch();
+          setTimeout(() => { this.classList.remove('glitched'); this.style.transform = ''; }, 400);
+        }
+        if (Math.random() < 0.3) {
+          const fakeTexts = ['No hagas esto','Él te observa','No hay salida','Error','???','...'];
+          this.querySelector('span').textContent = fakeTexts[Math.floor(Math.random() * fakeTexts.length)];
+          setTimeout(() => { this.querySelector('span').textContent = this.getAttribute('data-original'); }, 600);
+        }
+      });
+    }
+    btn.addEventListener('click', function() {
+      if (isTyping) return;
+      loadNode(this.getAttribute('data-next'));
+    });
+    // Stagger appearance
+    btn.style.opacity = '0';
+    btn.style.transform = 'translateY(10px)';
+    setTimeout(() => { btn.style.transition = 'opacity .4s, transform .4s'; btn.style.opacity = '1'; btn.style.transform = 'translateY(0)'; }, 200 + idx * 150);
+    optionsEl.appendChild(btn);
+  });
+}
+
+function applyVisualEffects(effects) {
+  const app = document.getElementById('app');
+  const storyArea = document.getElementById('story-area');
+  app.classList.remove('shake-active','shake-medium','shake-heavy');
+  storyArea.classList.remove('force-blur');
+  // Shake based on sanity_visual
+  const sv = sanityState.visual;
+  if (sv < 30) app.classList.add('shake-heavy');
+  else if (sv < 55) app.classList.add('shake-medium');
+  else if (sv < 75) app.classList.add('shake-active');
+  // Flicker
+  if (sv < 60) {
+    app.style.animation = `flickerOpacity ${Math.max(0.5, sv / 40)}s steps(3) infinite`;
+  } else {
+    app.style.animation = '';
+  }
+  // Force blur only on story area (pulsing: blurred ~3s, clear ~4s)
+  if (effects && effects.force_blur) storyArea.classList.add('force-blur');
+}
+
+function trySubliminal() {
+  const sp = sanityState.perceptive;
+  if (sp >= 70) return;
+  const prob = sp < 30 ? 0.5 : 0.2;
+  if (Math.random() > prob) return;
+  const layer = document.getElementById('subliminal-layer');
+  const txt = document.getElementById('subliminal-text');
+  txt.textContent = SUBLIMINAL_MSGS[Math.floor(Math.random() * SUBLIMINAL_MSGS.length)];
+  const duration = sp < 30 ? 250 : 120;
+  layer.style.opacity = '0.5';
+  layer.style.animation = `subliminalFlash ${duration}ms ease-out`;
+  setTimeout(() => { layer.style.opacity = '0'; layer.style.animation = ''; }, duration);
+}
+
+function updateDebug() {
+  if (!debugMode) return;
+  const dc = document.getElementById('debug-content');
+  const heartbeatActive = sanityState.visual < 40;
+  const tiltActive = gyroEnabled && gyroData.beta > 90 && sanityState.perceptive < 60;
+  dc.textContent =
+    `sanity_text:       ${sanityState.text.toString().padStart(3)}\n` +
+    `sanity_visual:     ${sanityState.visual.toString().padStart(3)}\n` +
+    `sanity_perceptive: ${sanityState.perceptive.toString().padStart(3)}\n` +
+    `sanity_interface:  ${sanityState.interface.toString().padStart(3)}\n` +
+    `─────────────────────\n` +
+    `haptics:   ${hapticsSupported ? 'ON' : 'N/A'}\n` +
+    `heartbeat: ${heartbeatActive ? '♥ ACTIVE' : 'idle'}\n` +
+    `─────────────────────\n` +
+    `gyro: ${gyroEnabled ? 'ON' : 'OFF'}\n` +
+    `β:${gyroData.beta.toFixed(0)}° γ:${gyroData.gamma.toFixed(0)}°\n` +
+    `tilt-secret: ${tiltActive ? '👁 VISIBLE' : 'hidden'}\n` +
+    `─────────────────────\n` +
+    `node: ${currentNode ? currentNode.id : 'none'}`;
+}
+
+// ============ INIT ============
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  // Refresh debug panel periodically for live gyro data
+  setInterval(updateDebug, 500);
+});
+</script>
+</body>
+</html>
