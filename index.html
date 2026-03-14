@@ -29,6 +29,11 @@ background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0
 font-family:'VT323',monospace;font-size:6vw;color:rgba(139,0,0,.35);text-transform:uppercase;
 opacity:0;transition:opacity .3s;white-space:nowrap;letter-spacing:.15em}
 #tilt-secret.visible{opacity:1}
+/* --- GYRO EFFECTS --- */
+#compass-dot{position:fixed;width:10px;height:10px;background:rgba(139,0,0,0);border-radius:50%;z-index:8997;pointer-events:none;transition:background .5s;box-shadow:0 0 8px rgba(139,0,0,0)}
+#compass-dot.active{background:rgba(139,0,0,.7);box-shadow:0 0 12px rgba(139,0,0,.5)}
+@keyframes gyroGlowPulse{0%,100%{box-shadow:inset 0 0 0px transparent}50%{box-shadow:inset 0 0 40px rgba(139,0,0,.25)}}
+.gyro-breathing{animation:gyroGlowPulse 3s ease-in-out infinite}
 /* --- DESKTOP BLOCK --- */
 #desktop-block{display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#000;
 flex-direction:column;align-items:center;justify-content:center;font-family:'VT323',monospace;color:#8b0000;text-align:center;padding:2rem}
@@ -93,6 +98,7 @@ width:90vmin;max-width:320px;line-height:1.4;backdrop-filter:blur(4px);border-ra
 <div id="scanlines"></div>
 <div id="subliminal-layer"><span id="subliminal-text"></span></div>
 <div id="tilt-secret"></div>
+<div id="compass-dot"></div>
 <div id="desktop-block"><h1>⛔ ACCESO DENEGADO ⛔</h1><p>Solo Terminales Móviles Autorizados.<br><br>Este contenido no está diseñado para su dispositivo. Acceda desde un terminal portátil.</p></div>
 <div id="title-screen">
   <h1>EL SUSURRO<br>DEL VACÍO</h1>
@@ -224,26 +230,129 @@ function enableGyro() {
 }
 
 function handleOrientation(e) {
-  gyroData.alpha = e.alpha || 0; // compass
-  gyroData.beta = e.beta || 0;   // front-back tilt (-180 to 180)
-  gyroData.gamma = e.gamma || 0; // left-right tilt (-90 to 90)
+  const prev = { ...gyroData };
+  gyroData.alpha = e.alpha || 0;
+  gyroData.beta  = e.beta  || 0;
+  gyroData.gamma = e.gamma || 0;
+
+  // Shake detection: measure how fast beta/gamma changed
+  const deltaBeta  = Math.abs(gyroData.beta  - prev.beta);
+  const deltaGamma = Math.abs(gyroData.gamma - prev.gamma);
+  gyroShakeAccum = gyroShakeAccum * 0.85 + (deltaBeta + deltaGamma) * 0.15;
+  if (gyroShakeAccum > SHAKE_THRESHOLD && !gyroShakeCooldown) {
+    triggerShakeBurst();
+  }
+
   applyParallax();
+  applyLivingVignette();
+  applyGravityText();
+  applyBreathing();
+  updateCompassDot();
   checkTiltSecret();
 }
 
 function applyParallax() {
-  // Map gamma (-90..90) and beta (tilted from ~60 neutral) to subtle shifts
-  const xShift = (gyroData.gamma / 90) * 15; // max ±15px
-  const yShift = ((gyroData.beta - 60) / 90) * 10; // max ±10px from neutral hold
-
-  const noise = document.getElementById('noise');
+  const xShift = (gyroData.gamma / 90) * 15;
+  const yShift = ((gyroData.beta - 60) / 90) * 10;
+  const noise    = document.getElementById('noise');
   const vignette = document.getElementById('vignette');
-  const scanlines = document.getElementById('scanlines');
-
-  // Each layer moves at different speeds for depth
-  if (noise) noise.style.transform = `translate(${xShift * 1.5}px, ${yShift * 1.5}px)`;
+  const scanlines= document.getElementById('scanlines');
+  if (noise)    noise.style.transform    = `translate(${xShift * 1.5}px, ${yShift * 1.5}px)`;
   if (vignette) vignette.style.transform = `translate(${xShift * 0.5}px, ${yShift * 0.5}px)`;
-  if (scanlines) scanlines.style.transform = `translate(${xShift * 0.3}px, ${yShift * 0.3}px)`;
+  if (scanlines)scanlines.style.transform= `translate(${xShift * 0.3}px, ${yShift * 0.3}px)`;
+}
+
+// --- EFFECT 1: Living Vignette (the dark eye follows your tilt) ---
+function applyLivingVignette() {
+  const vig = document.getElementById('vignette');
+  if (!vig) return;
+  const sv = sanityState.visual;
+  // Map tilt to gradient center: neutral is 50%,50%
+  const cx = 50 + (gyroData.gamma / 90) * 20;  // 30%-70%
+  const cy = 50 + ((gyroData.beta - 60) / 90) * 20;
+  // The darker the sanity, the more the eye constricts
+  const eyeSize = sv > 60 ? 55 : sv > 30 ? 40 : 25;
+  const darkness = sv > 60 ? 0.85 : sv > 30 ? 0.92 : 0.97;
+  vig.style.background = `radial-gradient(ellipse at ${cx}% ${cy}%, transparent ${eyeSize}%, rgba(0,0,0,${darkness}) 100%)`;
+}
+
+// --- EFFECT 2: Breathing Glow (slow tilt = screen breathes red) ---
+let breathingActive = false;
+function applyBreathing() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  // Count if movement is slow and deliberate (low delta, low shake)
+  const speed = Math.abs(gyroData.gamma) + Math.abs(gyroData.beta - 60);
+  const sv = sanityState.visual;
+  if (sv < 60 && speed < 20 && gyroShakeAccum < 3) {
+    if (!breathingActive) { app.classList.add('gyro-breathing'); breathingActive = true; }
+  } else {
+    if (breathingActive) { app.classList.remove('gyro-breathing'); breathingActive = false; }
+  }
+}
+
+// --- EFFECT 3: Shake detection & burst ---
+let gyroShakeAccum = 0;
+let gyroShakeCooldown = false;
+const SHAKE_THRESHOLD = 18;
+function triggerShakeBurst() {
+  gyroShakeCooldown = true;
+  // Visually: flicker screen + corrupt a random word in the story
+  const storyEl = document.getElementById('story-text');
+  if (storyEl && storyEl.textContent.trim().length > 0 && sanityState.text < 80) {
+    const html  = storyEl.innerHTML;
+    const chars = GLITCH_CHARS;
+    // Replace 2–4 random characters in the visible HTML
+    let mutations = 0;
+    const corrupted = html.replace(/[a-záéíóúñ]/gi, ch => {
+      if (mutations < 4 && Math.random() < 0.08) { mutations++; return chars[Math.floor(Math.random()*chars.length)]; }
+      return ch;
+    });
+    storyEl.innerHTML = corrupted;
+    // Restore after 600ms
+    setTimeout(() => { storyEl.innerHTML = html; }, 600);
+  }
+  // Flicker vignette
+  const vig = document.getElementById('vignette');
+  if (vig) {
+    vig.style.opacity = '0.95';
+    setTimeout(() => { vig.style.opacity = ''; }, 150);
+  }
+  vibrate(30);
+  setTimeout(() => { gyroShakeCooldown = false; }, 1200);
+}
+
+// --- EFFECT 4: Gravity Text (text drips the direction you tilt) ---
+function applyGravityText() {
+  const storyEl = document.getElementById('story-text');
+  if (!storyEl) return;
+  if (sanityState.visual > 70) { storyEl.style.transform = ''; return; }
+  // skew based on gamma (left/right tilt)
+  const skewAmt = (gyroData.gamma / 90) * 4;  // max ±4deg
+  const translateY = ((gyroData.beta - 60) / 90) * 5; // max ±5px
+  storyEl.style.transform = `skewX(${skewAmt}deg) translateY(${translateY}px)`;
+  storyEl.style.transition = 'transform 0.6s ease-out';
+}
+
+// --- EFFECT 5: Broken Compass dot orbits the vignette border ---
+function updateCompassDot() {
+  const dot = document.getElementById('compass-dot');
+  if (!dot) return;
+  const sv = sanityState.perceptive;
+  if (sv >= 70) { dot.classList.remove('active'); return; }
+  dot.classList.add('active');
+  // alpha 0-360 maps to full orbit around the screen edge
+  const angle = (gyroData.alpha / 360) * Math.PI * 2;
+  const rx = window.innerWidth / 2 - 8;
+  const ry = window.innerHeight / 2 - 8;
+  const cx = window.innerWidth  / 2 + rx * Math.sin(angle);
+  const cy = window.innerHeight / 2 - ry * Math.cos(angle);
+  dot.style.left = cx + 'px';
+  dot.style.top  = cy + 'px';
+  // Get redder / more opaque with lowering sanity
+  const opacity = 0.3 + (1 - sv / 70) * 0.7;
+  dot.style.background = `rgba(139,0,0,${opacity})`;
+  dot.style.boxShadow  = `0 0 ${8 + (1 - sv/70)*16}px rgba(139,0,0,${opacity})`;
 }
 
 function checkTiltSecret() {
