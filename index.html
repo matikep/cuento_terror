@@ -39,6 +39,10 @@ opacity:0;transition:opacity .3s;white-space:nowrap;letter-spacing:.15em}
 flex-direction:column;align-items:center;justify-content:center;font-family:'VT323',monospace;color:#8b0000;text-align:center;padding:2rem}
 #desktop-block h1{font-size:2rem;margin-bottom:1rem;animation:flicker 3s infinite}
 #desktop-block p{font-size:1.2rem;color:#4a3a2a;max-width:500px}
+/* --- FAKE CRASH --- */
+#fake-crash{display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;background:#0000aa;
+color:#fff;font-family:'VT323',monospace;padding:1rem;box-sizing:border-box;flex-direction:column}
+#fake-crash pre{font-size:14px;white-space:pre-wrap;word-break:break-all;margin:0}
 /* --- APP CONTAINER --- */
 #app{display:flex;flex-direction:column;height:100vh;height:100dvh;position:relative;z-index:10}
 /* --- HEADER --- */
@@ -99,6 +103,19 @@ width:90vmin;max-width:320px;line-height:1.4;backdrop-filter:blur(4px);border-ra
 <div id="subliminal-layer"><span id="subliminal-text"></span></div>
 <div id="tilt-secret"></div>
 <div id="compass-dot"></div>
+<div id="fake-crash">
+  <pre>
+*** EXCEPTION_NOT_HANDLED (0xDEADDEAD) ***
+[KERNEL PANIC] - SANITY_OVERFLOW_DETECTED
+Registers:
+R0: 0x00000000 R1: 0x6E6F7468 R2: 0x696E6720
+R3: 0x69732072 R4: 0x65616C21 R5: 0x00000000
+PC: 0xFFFFFFFF SP: 0x00000000 LR: 0xDEADBEEF
+
+Dumping physical memory to disk... 13%
+Please wait... you cannot escape.
+  </pre>
+</div>
 <div id="desktop-block"><h1>⛔ ACCESO DENEGADO ⛔</h1><p>Solo Terminales Móviles Autorizados.<br><br>Este contenido no está diseñado para su dispositivo. Acceda desde un terminal portátil.</p></div>
 <div id="title-screen">
   <h1>EL SUSURRO<br>DEL VACÍO</h1>
@@ -116,7 +133,7 @@ width:90vmin;max-width:320px;line-height:1.4;backdrop-filter:blur(4px);border-ra
   <div class="debug-row"><span>s_visual</span> <div><span id="dv-val">100</span> <div class="debug-controls" style="display:inline-flex"><button onclick="modSanity('visual',-10)">-</button><button onclick="modSanity('visual',10)">+</button></div></div></div>
   <div class="debug-row"><span>s_percept</span> <div><span id="dp-val">100</span> <div class="debug-controls" style="display:inline-flex"><button onclick="modSanity('perceptive',-10)">-</button><button onclick="modSanity('perceptive',10)">+</button></div></div></div>
   <div class="debug-row"><span>s_interf</span> <div><span id="di-val">100</span> <div class="debug-controls" style="display:inline-flex"><button onclick="modSanity('interface',-10)">-</button><button onclick="modSanity('interface',10)">+</button></div></div></div>
-  <div class="debug-row" style="margin-top:8px"><span>JUMP:</span> <select id="debug-node-select" onchange="if(this.value) loadNode(this.value)"><option value="">Select...</option></select></div>
+  <div class="debug-row" style="margin-top:8px"><span>JUMP:</span> <select id="debug-node-select" onchange="if(this.value) loadNode(this.value)"><option value="">Select...</option></select> <button onclick="triggerFakeCrash(true)" style="width:auto;padding:0 6px">CRASH</button></div>
   <div class="debug-info" id="debug-info"></div>
 </div>
 
@@ -359,14 +376,14 @@ function handleOrientation(e) {
 }
 
 function applyParallax() {
-  const xShift = (gyroData.gamma / 90) * 15;
-  const yShift = ((gyroData.beta - 60) / 90) * 10;
+  const xShift = (gyroData.gamma / 90) * 45; // Amplificado 3x
+  const yShift = ((gyroData.beta - 60) / 90) * 35; // Amplificado > 3x
   const noise    = document.getElementById('noise');
   const vignette = document.getElementById('vignette');
   const scanlines= document.getElementById('scanlines');
-  if (noise)    noise.style.transform    = `translate(${xShift * 1.5}px, ${yShift * 1.5}px)`;
-  if (vignette) vignette.style.transform = `translate(${xShift * 0.5}px, ${yShift * 0.5}px)`;
-  if (scanlines)scanlines.style.transform= `translate(${xShift * 0.3}px, ${yShift * 0.3}px)`;
+  if (noise)    noise.style.transform    = `translate(${xShift * 2.5}px, ${yShift * 2.5}px)`;
+  if (vignette) vignette.style.transform = `translate(${xShift * 1.5}px, ${yShift * 1.5}px)`;
+  if (scanlines)scanlines.style.transform= `translate(${xShift * 0.8}px, ${yShift * 0.8}px)`;
 }
 
 // --- EFFECT 1: Living Vignette (the dark eye follows your tilt) ---
@@ -374,12 +391,14 @@ function applyLivingVignette() {
   const vig = document.getElementById('vignette');
   if (!vig) return;
   const sv = sanityState.visual;
-  // Map tilt to gradient center: neutral is 50%,50%
-  const cx = 50 + (gyroData.gamma / 90) * 20;  // 30%-70%
-  const cy = 50 + ((gyroData.beta - 60) / 90) * 20;
+  // Map tilt to gradient center: neutral is 50%,50% - Amplificado 2x
+  let cx = 50 + (gyroData.gamma / 90) * 50;  // 0%-100%
+  let cy = 50 + ((gyroData.beta - 60) / 90) * 50;
+  cx = Math.max(0, Math.min(100, cx));
+  cy = Math.max(0, Math.min(100, cy));
   // The darker the sanity, the more the eye constricts
   const eyeSize = sv > 60 ? 55 : sv > 30 ? 40 : 25;
-  const darkness = sv > 60 ? 0.85 : sv > 30 ? 0.92 : 0.97;
+  const darkness = sv > 60 ? 0.85 : sv > 30 ? 0.92 : 0.98;
   vig.style.background = `radial-gradient(ellipse at ${cx}% ${cy}%, transparent ${eyeSize}%, rgba(0,0,0,${darkness}) 100%)`;
 }
 
@@ -434,11 +453,11 @@ function applyGravityText() {
   const storyEl = document.getElementById('story-text');
   if (!storyEl) return;
   if (sanityState.visual > 70) { storyEl.style.transform = ''; return; }
-  // skew based on gamma (left/right tilt)
-  const skewAmt = (gyroData.gamma / 90) * 4;  // max ±4deg
-  const translateY = ((gyroData.beta - 60) / 90) * 5; // max ±5px
+  // skew based on gamma (left/right tilt) - Amplificado 3x
+  const skewAmt = (gyroData.gamma / 90) * 16;  // max ±16deg
+  const translateY = ((gyroData.beta - 60) / 90) * 25; // max ±25px
   storyEl.style.transform = `skewX(${skewAmt}deg) translateY(${translateY}px)`;
-  storyEl.style.transition = 'transform 0.6s ease-out';
+  storyEl.style.transition = 'transform 0.4s ease-out';
 }
 
 // --- EFFECT 5: Broken Compass dot orbits the vignette border ---
@@ -550,7 +569,14 @@ function loadNode(id) {
   optionsEl.innerHTML = '';
   const metaText = parseMetaNarrative(node.text);
   const processedText = corruptText(metaText);
-  typeWriter(processedText, storyEl, () => { renderOptions(node.options); });
+  typeWriter(processedText, storyEl, () => {
+    renderOptions(node.options);
+    
+    // Random Fake Crash
+    if (!hasCrashed && sanityState.interface <= 60 && Math.random() < 0.15) {
+      setTimeout(() => triggerFakeCrash(false), 1500 + Math.random() * 3000);
+    }
+  });
   updateDebug();
 }
 
@@ -683,6 +709,40 @@ function trySubliminal() {
   layer.style.opacity = '0.5';
   layer.style.animation = `subliminalFlash ${duration}ms ease-out`;
   setTimeout(() => { layer.style.opacity = '0'; layer.style.animation = ''; }, duration);
+}
+
+let hasCrashed = false;
+function triggerFakeCrash(force) {
+  if (hasCrashed && !force) return;
+  hasCrashed = true;
+  
+  const crashDiv = document.getElementById('fake-crash');
+  crashDiv.style.display = 'flex';
+  
+  // Audio screech
+  if (audioCtx && audioEnabled) {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(8000, audioCtx.currentTime + 1.2);
+    
+    const crashGain = audioCtx.createGain();
+    crashGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+    crashGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.2);
+    
+    osc.connect(crashGain);
+    crashGain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 1.2);
+  }
+  
+  // Aggressive long haptic
+  vibrate([150, 50, 150, 50, 500]);
+  
+  // Hide after random short time
+  setTimeout(() => {
+    crashDiv.style.display = 'none';
+  }, 1000 + Math.random() * 800);
 }
 
 // Debug controls
