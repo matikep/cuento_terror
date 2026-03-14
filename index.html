@@ -130,6 +130,113 @@ const SUBLIMINAL_MSGS = ['TE VEO','NO ESTÁS SOLO','DATE LA VUELTA','DESPIERTA',
 // ============ STORY DATA ============
 let storyNodes = {};
 
+// ============ META-NARRATIVE (Real-World Inject) ============
+let batteryLevel = null;
+if ('getBattery' in navigator) {
+  navigator.getBattery().then(b => {
+    batteryLevel = b.level;
+    b.addEventListener('levelchange', () => batteryLevel = b.level);
+  }).catch(()=>{});
+}
+
+function parseMetaNarrative(text) {
+  const d = new Date();
+  const timeStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+  
+  let deviceName = 'Terminal Desconocido';
+  if (/iPhone/i.test(navigator.userAgent)) deviceName = 'iPhone';
+  else if (/iPad/i.test(navigator.userAgent)) deviceName = 'iPad';
+  else if (/Android/i.test(navigator.userAgent)) deviceName = 'Android';
+  else if (/Macintosh/i.test(navigator.userAgent)) deviceName = 'Mac';
+  else if (/Windows/i.test(navigator.userAgent)) deviceName = 'PC';
+  
+  let result = text.replace(/\{\{time\}\}/g, timeStr).replace(/\{\{device\}\}/g, deviceName);
+  
+  const batStr = batteryLevel !== null ? Math.round(batteryLevel * 100) + '%' : '13%'; // Fallback for iOS
+  result = result.replace(/\{\{battery\}\}/g, batStr);
+  
+  return result;
+}
+
+// ============ AUDIO (Web Audio API) ============
+let audioCtx = null;
+let masterGain = null;
+let droneOsc = null;
+let droneFilter = null;
+let droneLfo = null;
+let audioEnabled = false;
+let noiseBuffer = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  audioCtx = new AudioContext();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.5;
+  masterGain.connect(audioCtx.destination);
+  
+  // Drone Sub-Bass
+  droneOsc = audioCtx.createOscillator();
+  droneOsc.type = 'triangle';
+  droneOsc.frequency.value = 45;
+  
+  droneFilter = audioCtx.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 150;
+  
+  droneLfo = audioCtx.createOscillator();
+  droneLfo.type = 'sine';
+  droneLfo.frequency.value = 0.2;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 100;
+  
+  droneLfo.connect(lfoGain);
+  lfoGain.connect(droneFilter.frequency);
+  droneOsc.connect(droneFilter);
+  droneFilter.connect(masterGain);
+  
+  droneOsc.start();
+  droneLfo.start();
+  audioEnabled = true;
+  updateAudioScene();
+}
+
+function updateAudioScene() {
+  if (!audioEnabled || !audioCtx) return;
+  const sv = sanityState.visual;
+  // Intense pitch & frequency shifts on low sanity
+  const freq = sv < 30 ? 68 : sv < 60 ? 55 : 45;
+  droneOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 1);
+  const filterFreq = sv < 30 ? 800 : sv < 60 ? 300 : 150;
+  droneFilter.frequency.setTargetAtTime(filterFreq, audioCtx.currentTime, 1);
+  const lfoFreq = sv < 30 ? 3.5 : sv < 60 ? 0.8 : 0.2;
+  droneLfo.frequency.setTargetAtTime(lfoFreq, audioCtx.currentTime, 1);
+}
+
+function playTypewriterClick() {
+  if (!audioEnabled || !audioCtx) return;
+  if (!noiseBuffer) {
+    noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < output.length; i++) output[i] = Math.random() * 2 - 1;
+  }
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = noiseBuffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 2000 + Math.random() * 3000;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.03 + Math.random() * 0.05, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+  
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  noise.start();
+  noise.stop(audioCtx.currentTime + 0.05);
+}
+
 async function loadStoryData() {
   try {
     // Bulletproof URL calculation
@@ -377,8 +484,9 @@ function checkTiltSecret() {
 
 async function requestSensorsAndStart() {
   try {
-    // Request gyro permission first (required gesture on iOS)
     await requestGyroPermission();
+    initAudio();
+    if(audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
     await startGame();
   } catch(e) {
     console.error('[ENGINE] Start error:', e);
@@ -428,8 +536,9 @@ function loadNode(id) {
   sanityState.visual = Math.max(0, sanityState.visual + (node.impact.visual || 0));
   sanityState.perceptive = Math.max(0, sanityState.perceptive + (node.impact.perceptive || 0));
   sanityState.interface = Math.max(0, sanityState.interface + (node.impact.interface || 0));
-  // Apply visual + haptic effects
+  // Apply visual, haptic, and audio effects
   applyVisualEffects(node.effects);
+  updateAudioScene();
   // Trigger shock vibration if defined in node effects
   if (node.effects && node.effects.vibrate) {
     hapticShock(node.effects.vibrate);
@@ -439,7 +548,8 @@ function loadNode(id) {
   const optionsEl = document.getElementById('options-area');
   storyEl.innerHTML = '';
   optionsEl.innerHTML = '';
-  const processedText = corruptText(node.text);
+  const metaText = parseMetaNarrative(node.text);
+  const processedText = corruptText(metaText);
   typeWriter(processedText, storyEl, () => { renderOptions(node.options); });
   updateDebug();
 }
@@ -478,6 +588,7 @@ function typeWriter(text, el, callback) {
       const ch = text[i];
       if (ch === '\n') { el.innerHTML += '<br>'; }
       else { el.innerHTML += ch; }
+      if (ch !== ' ' && ch !== '\n') playTypewriterClick();
       // Remove old cursor, add new
       const cursors = el.querySelectorAll('.cursor');
       cursors.forEach(c => c.remove());
@@ -578,6 +689,7 @@ function trySubliminal() {
 function modSanity(type, amount) {
   sanityState[type] = Math.max(0, Math.min(100, sanityState[type] + amount));
   applyVisualEffects(currentNode ? currentNode.effects : null);
+  updateAudioScene();
   updateDebug();
 }
 

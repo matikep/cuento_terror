@@ -86,7 +86,7 @@ const STORY_DATA =
   },
   "regreso_01": {
     "id": "regreso_01",
-    "text": "Retrocedes. La puerta se cierra a tu espalda con un golpe seco.\n\nLa habitación ha cambiado. La mesa ahora está contra la pared opuesta. La vela sigue encendida, pero su llama es negra.\n\nUna llama negra que da luz.\n\nEn el cuaderno hay una nueva página escrita. La tinta aún está fresca:\n\n\"Sabía que volverías.\"",
+    "text": "Retrocedes. La puerta se cierra a tu espalda con un golpe seco.\n\nLa habitación ha cambiado. La mesa ahora está contra la pared opuesta. La vela sigue encendida, pero su llama es negra.\n\nEl reloj que no habías notado antes marca exactamente las {{time}}.\n\nEn el cuaderno hay una nueva página escrita. La tinta aún está fresca:\n\n\"Sabía que volverías.\"",
     "effects": { "force_blur": false, "glitch_intensity": "medium", "vibrate": [80] },
     "impact": { "text": -12, "visual": -10, "perceptive": -20, "interface": -8 },
     "options": [
@@ -126,7 +126,7 @@ const STORY_DATA =
   },
   "voz_01": {
     "id": "voz_01",
-    "text": "La voz no responde con palabras. Responde con imágenes que aparecen directamente en tu mente:\n\nUna carretera. Lluvia. Faros de un camión. El sonido del metal retorciéndose.\n\nY después, silencio. Un silencio perfecto y absoluto.\n\nY en ese silencio, entiendes.\n\nNunca saliste del coche. Esta habitación, el pasillo, la figura, el cuaderno... todo es el último segundo de sinapsis de un cerebro que se apaga.\n\nEl susurro del vacío fue siempre tu propia voz, despidiéndose.",
+    "text": "La voz no responde con palabras. Responde con imágenes que aparecen directamente en tu mente:\n\nUna carretera. Lluvia. Faros de un camión. El sonido de un dispositivo {{device}} con {{battery}} de energía estrellándose contra el parabrisas.\n\nY después, silencio. Un silencio perfecto y absoluto.\n\nY en ese silencio, entiendes.\n\nNunca saliste del coche. Esta habitación, el pasillo, la figura, el cuaderno... todo es el último segundo de sinapsis de un cerebro que se apaga.\n\nEl susurro del vacío fue siempre tu propia voz, despidiéndose.",
     "effects": { "force_blur": true, "glitch_intensity": "critical", "vibrate": [500, 200, 300, 100, 800] },
     "impact": { "text": -40, "visual": -40, "perceptive": -40, "interface": -30 },
     "options": [
