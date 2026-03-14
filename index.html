@@ -54,10 +54,17 @@ transition:border-color .3s,background .3s,transform .1s;position:relative;overf
 .option-btn span{margin-left:1rem}
 .option-btn:active{background:rgba(139,0,0,.15);border-color:var(--accent);transform:scale(.98)}
 .option-btn.glitched{animation:btnGlitch .1s steps(2) 3}
-/* --- DEBUG PANEL --- */
-#debug-panel{display:none;position:fixed;top:0;right:0;z-index:50000;background:rgba(0,20,0,.92);color:#00ff00;
-font-family:'VT323',monospace;font-size:.75rem;padding:.6rem;border-left:2px solid #00ff00;border-bottom:2px solid #00ff00;max-width:55vw;line-height:1.6}
-#debug-panel h3{color:#00ff41;margin-bottom:.3rem;font-size:.85rem}
+/* --- DEBUG CONTROL PANEL --- */
+#debug-panel{display:none;position:fixed;bottom:10px;right:10px;z-index:50000;background:rgba(0,15,0,.95);color:#00ff00;
+font-family:'VT323',monospace;font-size:16px;padding:12px;border:1px solid #00ff00;box-shadow:0 0 10px rgba(0,255,0,0.2);
+width:90vmin;max-width:320px;line-height:1.4;backdrop-filter:blur(4px);border-radius:4px}
+#debug-panel h3{color:#00ff41;margin-bottom:8px;font-size:18px;border-bottom:1px solid #00ff41;padding-bottom:4px;display:flex;justify-content:space-between}
+#debug-panel .debug-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+#debug-panel .debug-controls{display:flex;gap:4px}
+#debug-panel button{background:rgba(0,255,0,0.1);border:1px solid #00ff00;color:#00ff00;font-family:'VT323',monospace;cursor:pointer;width:24px;height:24px;font-size:16px;display:flex;align-items:center;justify-content:center}
+#debug-panel button:active{background:#00ff00;color:#000}
+#debug-panel select{background:rgba(0,15,0,0.9);color:#00ff00;border:1px solid #00ff00;font-family:'VT323',monospace;width:100px;font-size:14px;padding:2px}
+#debug-panel .debug-info{font-size:12px;color:#00aa00;margin-top:8px;border-top:1px dotted #00aa00;padding-top:6px}
 /* --- ANIMATIONS --- */
 @keyframes blink{50%{opacity:0}}
 @keyframes flicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:.2}94%{opacity:1}96%{opacity:.4}97%{opacity:1}}
@@ -97,9 +104,16 @@ font-family:'VT323',monospace;font-size:.75rem;padding:.6rem;border-left:2px sol
   <div id="story-area"><div id="story-text"></div></div>
   <div id="options-area" id="options"></div>
 </div>
-<div id="debug-panel"><h3>// DEBUG SANITY</h3><pre id="debug-content"></pre></div>
+<div id="debug-panel">
+  <h3><span>// CONTROL PANEL</span> <button onclick="document.getElementById('debug-panel').style.display='none'" style="border:none">X</button></h3>
+  <div class="debug-row"><span>s_text</span> <div><span id="dt-val">100</span> <div class="debug-controls" style="display:inline-flex"><button onclick="modSanity('text',-10)">-</button><button onclick="modSanity('text',10)">+</button></div></div></div>
+  <div class="debug-row"><span>s_visual</span> <div><span id="dv-val">100</span> <div class="debug-controls" style="display:inline-flex"><button onclick="modSanity('visual',-10)">-</button><button onclick="modSanity('visual',10)">+</button></div></div></div>
+  <div class="debug-row"><span>s_percept</span> <div><span id="dp-val">100</span> <div class="debug-controls" style="display:inline-flex"><button onclick="modSanity('perceptive',-10)">-</button><button onclick="modSanity('perceptive',10)">+</button></div></div></div>
+  <div class="debug-row"><span>s_interf</span> <div><span id="di-val">100</span> <div class="debug-controls" style="display:inline-flex"><button onclick="modSanity('interface',-10)">-</button><button onclick="modSanity('interface',10)">+</button></div></div></div>
+  <div class="debug-row" style="margin-top:8px"><span>JUMP:</span> <select id="debug-node-select" onchange="if(this.value) loadNode(this.value)"><option value="">Select...</option></select></div>
+  <div class="debug-info" id="debug-info"></div>
+</div>
 
-<script src="./story.js"></script>
 <script>
 // ============ SANITY STATE ============
 const sanityState = { text: 100, visual: 100, perceptive: 100, interface: 100 };
@@ -107,8 +121,38 @@ const GLITCH_CHARS = ['†','‡','☠','Ω','¥','§','∆','◊','░','▒','
 const REPLACE_WORDS = ['AYUDA','MÍRAME','ÉL VIENE','NO ESTÁS SOLO','CORRE','DETRÁS DE TI','NO DESPIERTES'];
 const SUBLIMINAL_MSGS = ['TE VEO','NO ESTÁS SOLO','DATE LA VUELTA','DESPIERTA','ES REAL','SIEMPRE ESTUVO AHÍ','NO CIERRES LOS OJOS','DETRÁS DE TI'];
 
-// ============ STORY DATA (loaded from story.js) ============
-let storyNodes = typeof STORY_DATA !== 'undefined' ? STORY_DATA : {};
+// ============ STORY DATA ============
+let storyNodes = {};
+
+async function loadStoryData() {
+  try {
+    // Bulletproof URL calculation
+    // This fixes Safari issues when serving from subfolders without trailing slash (e.g. /projects/terror instead of /projects/terror/)
+    let base = window.location.href.split('?')[0].split('#')[0];
+    if (!base.endsWith('/')) {
+      if (base.match(/\.[a-zA-Z0-9]+$/)) {
+        base = base.substring(0, base.lastIndexOf('/') + 1); // remove index.html
+      } else {
+        base += '/'; // append trailing slash
+      }
+    }
+    const url = base + 'story.json';
+    
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    storyNodes = await resp.json();
+    console.log(`[ENGINE] Story loaded: ${Object.keys(storyNodes).length} nodes`);
+    populateDebugSelect();
+    return true;
+  } catch (err) {
+    console.error('[ENGINE] Failed to load story.json:', err);
+    const titleP = document.querySelector('#title-screen p');
+    if (titleP) {
+      titleP.innerHTML = `<span style="color:#8b0000">ERROR DE CARGA RED:<br>${err.message}<br><br>Safari/IOS bloqueó el fetch. El motor intentó: ${window.location.href.split('?')[0]}</span>`;
+    }
+    return false;
+  }
+}
 
 // ============ HAPTICS (Vibration API) ============
 let heartbeatInterval = null;
@@ -254,9 +298,8 @@ function init() {
 
 async function startGame() {
   if (Object.keys(storyNodes).length === 0) {
-    const titleP = document.querySelector('#title-screen p');
-    if (titleP) titleP.innerHTML = '<span style="color:#8b0000">ERROR: story.js no se cargó correctamente.</span>';
-    return;
+    const ok = await loadStoryData();
+    if (!ok) return;
   }
   document.getElementById('title-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
@@ -422,25 +465,33 @@ function trySubliminal() {
   setTimeout(() => { layer.style.opacity = '0'; layer.style.animation = ''; }, duration);
 }
 
+// Debug controls
+function modSanity(type, amount) {
+  sanityState[type] = Math.max(0, Math.min(100, sanityState[type] + amount));
+  applyVisualEffects(currentNode ? currentNode.effects : null);
+  updateDebug();
+}
+
+function populateDebugSelect() {
+  if (!debugMode) return;
+  const sel = document.getElementById('debug-node-select');
+  sel.innerHTML = '<option value="">Select...</option>';
+  for (let key in storyNodes) {
+    sel.innerHTML += `<option value="${key}">${key}</option>`;
+  }
+}
+
 function updateDebug() {
   if (!debugMode) return;
-  const dc = document.getElementById('debug-content');
-  const heartbeatActive = sanityState.visual < 40;
-  const tiltActive = gyroEnabled && gyroData.beta > 90 && sanityState.perceptive < 60;
-  dc.textContent =
-    `sanity_text:       ${sanityState.text.toString().padStart(3)}\n` +
-    `sanity_visual:     ${sanityState.visual.toString().padStart(3)}\n` +
-    `sanity_perceptive: ${sanityState.perceptive.toString().padStart(3)}\n` +
-    `sanity_interface:  ${sanityState.interface.toString().padStart(3)}\n` +
-    `─────────────────────\n` +
-    `haptics:   ${hapticsSupported ? 'ON' : 'N/A'}\n` +
-    `heartbeat: ${heartbeatActive ? '♥ ACTIVE' : 'idle'}\n` +
-    `─────────────────────\n` +
-    `gyro: ${gyroEnabled ? 'ON' : 'OFF'}\n` +
-    `β:${gyroData.beta.toFixed(0)}° γ:${gyroData.gamma.toFixed(0)}°\n` +
-    `tilt-secret: ${tiltActive ? '👁 VISIBLE' : 'hidden'}\n` +
-    `─────────────────────\n` +
-    `node: ${currentNode ? currentNode.id : 'none'}`;
+  document.getElementById('dt-val').textContent = sanityState.text.toString().padStart(3);
+  document.getElementById('dv-val').textContent = sanityState.visual.toString().padStart(3);
+  document.getElementById('dp-val').textContent = sanityState.perceptive.toString().padStart(3);
+  document.getElementById('di-val').textContent = sanityState.interface.toString().padStart(3);
+  
+  const hInfo = `Haptics: ${hapticsSupported ? 'ON' : 'N/A'} | Heart: ${sanityState.visual < 40 ? 'ACTIVE' : 'IDLE'}`;
+  const gInfo = `Gyro: ${gyroData.beta.toFixed(0)}° ${gyroData.gamma.toFixed(0)}°`;
+  const tInfo = `Secret: ${gyroEnabled && gyroData.beta > 90 && sanityState.perceptive < 60 ? 'VISIBLE' : 'HIDDEN'}`;
+  document.getElementById('debug-info').innerHTML = hInfo + '<br>' + gInfo + '<br>' + tInfo + '<br>Node: ' + (currentNode ? currentNode.id : 'none');
 }
 
 // ============ INIT ============
