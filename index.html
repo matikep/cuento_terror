@@ -448,16 +448,25 @@ function triggerShakeBurst() {
   setTimeout(() => { gyroShakeCooldown = false; }, 1200);
 }
 
-// --- EFFECT 4: Gravity Text (text drips the direction you tilt) ---
+// --- EFFECT 4: Gravity & Blur (text drips and blurs the direction you tilt) ---
 function applyGravityText() {
   const storyEl = document.getElementById('story-text');
   if (!storyEl) return;
-  if (sanityState.visual > 70) { storyEl.style.transform = ''; return; }
+  if (sanityState.visual > 70) { 
+    storyEl.style.transform = ''; 
+    storyEl.style.filter = ''; 
+    return; 
+  }
   // skew based on gamma (left/right tilt) - Amplificado 3x
   const skewAmt = (gyroData.gamma / 90) * 16;  // max ±16deg
   const translateY = ((gyroData.beta - 60) / 90) * 25; // max ±25px
+  
+  // Gyro blur: text goes out of focus if tilted heavily from the neutral state (beta: 60, gamma: 0)
+  const blurAmt = (Math.abs(gyroData.gamma) / 90) * 2.5 + (Math.abs(gyroData.beta - 60) / 90) * 2.5;
+  
   storyEl.style.transform = `skewX(${skewAmt}deg) translateY(${translateY}px)`;
-  storyEl.style.transition = 'transform 0.4s ease-out';
+  storyEl.style.filter = `blur(${Math.max(0, blurAmt)}px)`;
+  storyEl.style.transition = 'transform 0.4s ease-out, filter 0.4s ease-out';
 }
 
 // --- EFFECT 5: Broken Compass dot orbits the vignette border ---
@@ -718,23 +727,6 @@ function triggerFakeCrash(force) {
   
   const crashDiv = document.getElementById('fake-crash');
   crashDiv.style.display = 'flex';
-  
-  // Audio screech
-  if (audioCtx && audioEnabled) {
-    const osc = audioCtx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(8000, audioCtx.currentTime + 1.2);
-    
-    const crashGain = audioCtx.createGain();
-    crashGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
-    crashGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.2);
-    
-    osc.connect(crashGain);
-    crashGain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 1.2);
-  }
   
   // Aggressive long haptic
   vibrate([150, 50, 150, 50, 500]);
