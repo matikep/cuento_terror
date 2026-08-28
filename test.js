@@ -82,6 +82,20 @@ assert.ok(/GESTURE_ESCAPE_MS\) el\.gestureSkip\.style\.display = 'block'/.test(e
 assert.ok(engine.includes("el.gestureSkip.addEventListener('click', () => resolveGesture(false))"),
   'el botón de escape debe estar conectado');
 
+// --- 7. El arranque nunca espera a un permiso ---
+// En iOS, requestPermission() puede quedarse pendiente para siempre si el tap se
+// consumió cerrando el teclado. Con un await delante, el cuento no arrancaba nunca
+// y no saltaba ni el catch.
+const start = engine.slice(engine.indexOf('function requestSensorsAndStart'),
+  engine.indexOf('function startGame'));
+assert.ok(!/\bawait\b/.test(start),
+  'requestSensorsAndStart no puede usar await: un permiso colgado dejaría el juego muerto');
+assert.ok(!/^async function requestSensorsAndStart/m.test(engine),
+  'requestSensorsAndStart debe ser síncrona hasta startGame()');
+assert.ok(start.indexOf('startGame()') > start.indexOf('requestGyroPermission'),
+  'los sensores se piden dentro del gesto, pero startGame() debe ejecutarse igualmente');
+assert.ok(/if \(gameStarted\) return;/.test(start), 'doble arranque debe estar protegido');
+
 console.log(`OK — ${Object.keys(NODES).length} nodos, ${used.size} variables meta, ${ids.length} ids,`,
   `silencio en ${withSilence.length}, susurros en ${withWhisper.length},`,
   `gestos: ${gestureNodes.map(([id, n]) => `${id}=${n.effects.gesture}`).join(' ')}`);

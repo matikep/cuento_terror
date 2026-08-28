@@ -694,16 +694,32 @@ function triggerFakeCrash(force) {
 }
 
 // ============ ARRANQUE ============
-async function requestSensorsAndStart() {
+let gameStarted = false;
+
+// El arranque NO puede depender de los permisos.
+//
+// En iOS, DeviceOrientationEvent.requestPermission() solo es válido dentro de un
+// gesto de usuario. Si el jugador escribe su nombre, el teclado queda abierto y el
+// tap del botón se consume cerrándolo: iOS deja de considerarlo gesto válido y la
+// promesa se queda pendiente para siempre — ni resuelve ni rechaza. Con un `await`
+// delante, startGame() no llegaba a ejecutarse nunca y no saltaba ni el catch: la
+// pantalla de título se quedaba muerta, y solo al poner nombre.
+//
+// Los sensores se piden aquí dentro (el gesto lo exige) pero sin esperarlos: son
+// mejoras, no requisitos. El cuento arranca igual sin giroscopio y sin audio.
+function requestSensorsAndStart() {
+  if (gameStarted) return;
+  gameStarted = true;
   save.name = (el.nameInput.value || '').trim().slice(0, 24);
+  el.nameInput.blur();
+
+  try { Promise.resolve(requestGyroPermission()).catch(() => {}); } catch (e) {}
   try {
-    await requestGyroPermission();
     initAudio();
-    if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
-    startGame();
-  } catch (e) {
-    el.titleMsg.innerHTML = '<span style="color:#8b0000">ERROR: ' + e.message + '</span>';
-  }
+    if (audioCtx && audioCtx.state === 'suspended') Promise.resolve(audioCtx.resume()).catch(() => {});
+  } catch (e) {}
+
+  startGame();
 }
 
 function startGame() {
@@ -775,6 +791,10 @@ function init() {
   el.muteBtn.addEventListener('click', toggleMute);
   el.gestureSkip.addEventListener('click', () => resolveGesture(false));
   document.getElementById('start-btn').addEventListener('click', requestSensorsAndStart);
+  // Segunda vía: con el teclado abierto, el tap del botón puede consumirse cerrándolo.
+  el.nameInput.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); requestSensorsAndStart(); }
+  });
   el.app.addEventListener('pointerdown', ev => {
     if (!ev.target.closest('.option-btn')) completeTyping();
   });
